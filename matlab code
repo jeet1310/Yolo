@@ -1,0 +1,73 @@
+% Load YOLO model
+model = 'tiny-yolov3-coco'; 
+detector = yolov3ObjectDetector(model);  % Load the pre-trained YOLO model
+
+%% Object Detection on an Image
+% Read the input image
+inputImage = imread('dp.jpeg'); % Replace with your image file
+
+% Detect objects in the image
+[bboxes_img, scores_img, labels_img] = detect(detector, inputImage);
+
+% Display the detected objects in the image
+detectedImg = insertObjectAnnotation(inputImage, 'rectangle', bboxes_img, ...
+    cellstr(labels_img));
+
+% Count the number of detected objects
+numDetectedObjects = size(bboxes_img, 1); % Get the number of bounding boxes
+
+% Display the count on the image
+detectedImg = insertText(detectedImg, [10 10], ...
+    sprintf('Total Detected Objects: %d', numDetectedObjects), ...
+    'FontSize', 18, 'TextColor', 'white', 'BoxColor', 'black');
+
+% Show the result for the image
+figure;
+imshow(detectedImg);
+title('Detected Objects in Image');
+
+%% Object Detection on a Video
+% Create a video object (replace 'video.mp4' with your video file)
+videoSource = vision.VideoFileReader('cars.mp4'); % Specify your video file path
+videoPlayer = vision.VideoPlayer('Position', [100, 100, 680, 480]);
+outputVideo = VideoWriter('output_video.avi'); % Create video writer
+open(outputVideo); % Open video writer
+
+% Detection loop for video
+frameCount = 0; % Initialize frame counter
+totalObjects = 0; % Initialize total object counter
+while ~isDone(videoSource)
+    frame = step(videoSource); % Read the next frame
+    frameCount = frameCount + 1; % Increment frame counter
+
+    % Detect objects in the frame
+    [bboxes_vid, scores_vid, labels_vid] = detect(detector, frame);
+
+    % Filter out weak detections (set a confidence threshold)
+    confidenceThreshold = 0.5; % Change as needed
+    idx = scores_vid > confidenceThreshold; % Index of detections above threshold
+    bboxes_vid = bboxes_vid(idx, :);
+    scores_vid = scores_vid(idx);
+    labels_vid = labels_vid(idx);
+
+    % Update total object count
+    totalObjects = totalObjects + length(labels_vid);
+
+    % Insert bounding boxes and confidence scores into the image
+    detectedVidImg = insertObjectAnnotation(frame, 'rectangle', bboxes_vid, ...
+        cellstr(strcat(string(labels_vid), " (", string(scores_vid), ")"))); % Display confidence score
+
+    % Display frame rate on the video
+    detectedVidImg = insertText(detectedVidImg, [10 10], ...
+        sprintf('Frame: %d, Total Objects: %d', frameCount, totalObjects), ...
+        'FontSize', 18, 'TextColor', 'white', 'BoxColor', 'black');
+
+    % Display the output
+    step(videoPlayer, detectedVidImg);
+    writeVideo(outputVideo, detectedVidImg); % Write frame to output video
+end
+
+% Clean up after video processing
+release(videoSource);
+release(videoPlayer);
+close(outputVideo); % Close video writer
